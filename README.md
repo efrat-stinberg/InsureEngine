@@ -1,22 +1,22 @@
 # insure-engine
 
-## מבנה הפרויקט
+## Project Structure
 
 ```
 insure-engine/
 ├── src/
 │   └── insure_engine/
-│       ├── core/       # לוגיקה מרכזית
-│       ├── models/     # מודלים ומבני נתונים
-│       ├── rules/      # כללי חיתום / תמחור
-│       └── utils/      # פונקציות עזר
-├── tests/              # בדיקות
-├── main.py             # נקודת כניסה
+│       ├── core/       # Core logic
+│       ├── models/     # Data models and structures
+│       ├── rules/      # Underwriting / pricing rules
+│       └── utils/      # Helper functions
+├── tests/              # Tests
+├── main.py             # Entry point
 ├── requirements.txt
 └── README.md
 ```
 
-## הרצה
+## Running
 
 ```bash
 python main.py
