@@ -1,98 +1,98 @@
 # InsureEngine
 
-בוט אוטומטי המנטר פורום קהילתי, מאתר פוסטים בנושאי ביטוח (בעברית) ומגיב להם תגובה הנוצרת באמצעות AI בשיטת **RAG** (Retrieval-Augmented Generation) — תשובה המבוססת על מידע רלוונטי שמאוחזר ממסד נתונים סמנטי, ולא רק על "ידע כללי" של המודל.
+An automated bot that monitors a community forum, detects insurance-related posts (in Hebrew), and replies to them with an AI-generated answer using **RAG** (Retrieval-Augmented Generation) — an answer grounded in relevant information retrieved from a semantic knowledge base, rather than relying solely on the model's general knowledge.
 
-## 🎯 מה הפרויקט עושה (הפן המוצרי)
+## 🎯 What the project does (product overview)
 
-בפורומים קהילתיים (למשל פורומי רכב, דיור וכו׳) מתפרסמות הרבה שאלות בנושא ביטוח — ביטוח רכב, ביטוח דירה, תביעות, פרמיות וכו׳. **InsureEngine** רץ ברקע, "קורא" כל פוסט חדש, ומזהה אם הוא רלוונטי לתחום הביטוח. אם כן — הוא:
+Community forums (for example, car or housing forums) see a lot of insurance-related questions — car insurance, home insurance, claims, premiums, and so on. **InsureEngine** runs in the background, "reads" every new post, and determines whether it is insurance-related. If it is, the bot:
 
-1. יוצר שאילתת חיפוש סמנטי על בסיס תוכן הפוסט.
-2. מאחזר מידע רלוונטי ממאגר ידע (embeddings) ששמור במסד הנתונים.
-3. מפעיל מודל שפה (GPT) שמייצר תשובה מקצועית, ברורה ונעימה, המבוססת על המידע שאוחזר.
-4. מפרסם את התשובה כתגובה לפוסט המקורי, בשם "משתמש בוט" ייעודי.
+1. Builds a semantic search query from the post's content.
+2. Retrieves relevant information from a knowledge base (embeddings) stored in the database.
+3. Runs a language model (GPT) that generates a clear, friendly, and professional answer grounded in the retrieved information.
+4. Publishes that answer as a comment on the original post.
 
-התוצאה: משתמשים בפורום מקבלים מענה ראשוני ומושכל לשאלות ביטוח, מבלי שיידרש מענה אנושי לכל שאלה.
+The result: forum users get an informed, immediate response to insurance questions, without requiring a human to answer every single one.
 
-## ⚙️ איך זה עובד (זרימת העבודה)
+## ⚙️ How it works (pipeline)
 
-הבוט פועל בלופ אינסופי (Polling), כל 10 שניות:
+The bot runs an endless polling loop, checking every 10 seconds:
 
 ```
-┌─────────────────┐     ┌────────────────────┐     ┌───────────────────┐     ┌──────────────────┐
-│  Post Fetcher    │ ──▶ │ Insurance Filter    │ ──▶ │   RAG Engine       │ ──▶ │ Comment Publisher │
-│  שולף פוסטים     │     │ מסנן לפי מילות      │     │  embedding + חיפוש │     │ מפרסם תגובה       │
-│  חדשים מ-Supabase│     │ מפתח בעברית         │     │  סמנטי + GPT-4     │     │ בחזרה על הפוסט    │
-└─────────────────┘     └────────────────────┘     └───────────────────┘     └──────────────────┘
+┌──────────────────┐     ┌────────────────────┐     ┌────────────────────┐     ┌────────────────────┐
+│   Post Fetcher    │ ──▶ │ Insurance Filter    │ ──▶ │    RAG Engine       │ ──▶ │ Comment Publisher   │
+│ Fetches new posts  │     │ Filters by Hebrew   │     │ Embedding + semantic │     │ Publishes the reply  │
+│ from Supabase      │     │ insurance keywords  │     │ search + GPT-4       │     │ back on the post      │
+└──────────────────┘     └────────────────────┘     └────────────────────┘     └────────────────────┘
 ```
 
-1. **Post Fetcher** (`insure_engine/post_fetcher.py`) — שולף מ-Supabase (או מקובץ JSON מקומי, בהתאם לקונפיגורציה) פוסטים חדשים שפורסמו מאז הריצה האחרונה (או בחלון הזמן המוגדר), ושומר את חותמת הזמן האחרונה שנקראה בקובץ `last_seen.txt`, כדי שלא לעבד פוסט פעמיים.
-2. **Insurance Filter** — מתוך הפוסטים שנשלפו, נבחרים רק אלו שמכילים אחת ממגוון מילות מפתח בעברית בתחום הביטוח (כגון "ביטוח חובה", "פוליסה", "תביעה", "השתתפות עצמית", "ביטוח מבוסס שימוש" ועוד).
+1. **Post Fetcher** (`insure_engine/post_fetcher.py`) — fetches new posts from Supabase (or from a local JSON file, depending on configuration) that were published since the last run (or within a configured time window), and saves the timestamp of the latest post seen to `last_seen.txt`, so no post gets processed twice.
+2. **Insurance Filter** — out of the fetched posts, keeps only those containing at least one of a curated list of Hebrew insurance-related keywords (e.g. "ביטוח חובה" / mandatory insurance, "פוליסה" / policy, "תביעה" / claim, "השתתפות עצמית" / deductible, "ביטוח מבוסס שימוש" / usage-based insurance, and more).
 3. **RAG Engine** (`insure_engine/supabase_rag.py`) —
-   - מייצר embedding לשאלה באמצעות מודל ה-embeddings של OpenAI (`text-embedding-3-small`).
-   - מבצע חיפוש דמיון וקטורי (cosine similarity) מול טבלת ה-embeddings בפוסטגרס/Supabase (pgvector) באמצעות פונקציית RPC בשם `match_embeddings_cosine`.
-   - בונה פרומפט שמשלב את ההקשר שאוחזר עם שאלת המשתמש.
-   - שולח את הפרומפט למודל GPT-4 עם הנחיות מערכת (System Prompt) שמגדירות טון ענייני ונעים, תשובה מבוססת-הקשר, ותוספת לינקים למידע נוסף.
-4. **Comment Publisher** (`insure_engine/comments.py`) — מפרסם את התשובה שחזרה מה-RAG כתגובה חדשה בטבלת `comments` ב-Supabase, בשם משתמש הבוט (`BOT_USER_ID`).
+   - Generates an embedding for the query using OpenAI's embeddings model (`text-embedding-3-small`).
+   - Performs a vector similarity search (cosine similarity) against the embeddings table in Postgres/Supabase (pgvector), via an RPC function called `match_embeddings_cosine`.
+   - Builds a prompt that combines the retrieved context with the user's question.
+   - Sends the prompt to the GPT-4 model with a system prompt that defines a friendly, professional tone, a context-grounded answer, and additional reference links.
+4. **Comment Publisher** (`insure_engine/comments.py`) — publishes the RAG-generated answer as a new row in the `comments` table in Supabase, on behalf of the bot's user account (`BOT_USER_ID`).
 
-כל המחזור מתואם מתוך `main.py`, שמריץ לופ `while True` עם `time.sleep` בין איטרציה לאיטרציה, ורושם לוג (`logging`) על כל שלב ועל חריגות.
+The whole cycle is orchestrated from `main.py`, which runs a `while True` loop with `time.sleep` between iterations and logs each step and any exceptions via `logging`.
 
-## 🧰 הפן הטכנולוגי (Tech Stack)
+## 🧰 Tech stack
 
-| רכיב | טכנולוגיה |
+| Component | Technology |
 |---|---|
-| שפת תכנות | Python 3 |
-| מסד נתונים | Supabase (Postgres) |
-| חיפוש סמנטי | pgvector + פונקציית RPC מותאמת (`match_embeddings_cosine`) |
-| מודל Embeddings | OpenAI `text-embedding-3-small` |
-| מודל שיחה/ייצור טקסט | OpenAI `gpt-4` |
-| ניהול קונפיגורציה | קובץ `.env` (`python-dotenv`) + קובץ `config/config.yaml` אופציונלי (`pyyaml`) |
-| פריסה | Render — כ-Background Worker |
+| Language | Python 3 |
+| Database | Supabase (Postgres) |
+| Semantic search | pgvector + a custom RPC function (`match_embeddings_cosine`) |
+| Embeddings model | OpenAI `text-embedding-3-small` |
+| Answer generation model | OpenAI `gpt-4` |
+| Configuration | `.env` file (`python-dotenv`) + optional `config/config.yaml` (`pyyaml`) |
+| Deployment | Render — as a Background Worker |
 
-## 📁 מבנה הפרויקט
+## 📁 Project structure
 
 ```
 InsureEngine/
-├── main.py                        # נקודת הכניסה — לופ ה-polling הראשי
+├── main.py                        # Entry point — the main polling loop
 ├── insure_engine/
 │   ├── __init__.py
-│   ├── post_fetcher.py            # שליפה וסינון פוסטים (Supabase / JSON מקומי)
-│   ├── comments.py                # פרסום תגובות וקריאה ל-RAG
-│   └── supabase_rag.py            # embedding, חיפוש סמנטי וייצור תשובה
+│   ├── post_fetcher.py            # Fetches and filters posts (Supabase / local JSON)
+│   ├── comments.py                # Publishes comments and calls the RAG engine
+│   └── supabase_rag.py            # Embedding, semantic search, and answer generation
 ├── tests/
-│   └── __init__.py                # שלד לבדיקות (ריק כרגע)
-├── last_seen.txt                  # חותמת הזמן של הפוסט האחרון שעובד
-├── requirements.txt                # רשימת תלויות (ראו הערה למטה)
+│   └── __init__.py                # Test scaffolding (currently empty)
+├── last_seen.txt                  # Timestamp of the last post processed
+├── requirements.txt                # Dependency list (see note below)
 ├── .gitignore
 └── README.md
 ```
 
-> **הערה:** `requirements.txt` כרגע הוא קובץ שלד בלבד וללא תלויות רשומות בפועל. בהתאם לייבואים בקוד, התלויות הנדרשות להרצה הן לפחות: `supabase`, `openai`, `python-dotenv`, `pyyaml`. מומלץ להוסיף אותן לקובץ (ראו שלב ההתקנה למטה).
+> **Note:** `requirements.txt` is currently just a placeholder file with no actual dependencies listed. Based on the imports in the code, the dependencies required to run the project are at least: `supabase`, `openai`, `python-dotenv`, `pyyaml`. It's recommended to add them to the file (see the installation steps below).
 
-## 🚀 התקנה והרצה
+## 🚀 Installation and running
 
-### דרישות מוקדמות
+### Prerequisites
 
-- Python 3.10+‎
-- פרויקט Supabase פעיל, עם:
-  - טבלת `posts` (עם עמודות `id`, `title`, `content`, `created_at` לפחות)
-  - טבלת `comments` (עם עמודות `id`, `post_id`, `user_id`, `content`, `created_at`)
-  - טבלת embeddings עם תמיכת `pgvector` ופונקציית RPC בשם `match_embeddings_cosine`
-- מפתח API של OpenAI
+- Python 3.10+
+- An active Supabase project, with:
+  - A `posts` table (with at least `id`, `title`, `content`, `created_at` columns)
+  - A `comments` table (with `id`, `post_id`, `user_id`, `content`, `created_at` columns)
+  - An embeddings table with `pgvector` support and an RPC function named `match_embeddings_cosine`
+- An OpenAI API key
 
-### שלבי התקנה
+### Setup steps
 
-1. שכפול הריפו:
+1. Clone the repository:
    ```bash
    git clone https://github.com/efrat-stinberg/InsureEngine.git
    cd InsureEngine
    ```
 
-2. התקנת תלויות (יש להשלים את `requirements.txt` עם החבילות הנדרשות, או להתקין ישירות):
+2. Install dependencies (you should also fill in `requirements.txt` with the packages below, or install them directly):
    ```bash
    pip install supabase openai python-dotenv pyyaml
    ```
 
-3. יצירת קובץ `.env` בשורש הפרויקט עם המשתנים הבאים:
+3. Create a `.env` file in the project root with the following variables:
    ```env
    SUPABASE_URL=
    SUPABASE_ANON_KEY=
@@ -101,35 +101,35 @@ InsureEngine/
    OPENAI_API_KEY=
    BOT_USER_ID=
    ```
-   - `SUPABASE_URL` / `SUPABASE_ANON_KEY` — נדרשים לשליפת הפוסטים (`post_fetcher.py`).
-   - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — נדרשים לפרסום התגובות (`comments.py`), שכן נדרשת הרשאת כתיבה.
-   - `SUPABASE_URL` / `SUPABASE_KEY` — נדרשים לרכיב ה-RAG (`supabase_rag.py`) לצורך ביצוע ה-RPC של החיפוש הסמנטי.
-   - `OPENAI_API_KEY` — מפתח ה-API של OpenAI, לייצור embeddings ולייצור התשובות.
-   - `BOT_USER_ID` — ה-UUID של משתמש הבוט בטבלת המשתמשים, שבשמו יפורסמו התגובות.
+   - `SUPABASE_URL` / `SUPABASE_ANON_KEY` — required for fetching posts (`post_fetcher.py`).
+   - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — required for publishing comments (`comments.py`), since write access is needed.
+   - `SUPABASE_URL` / `SUPABASE_KEY` — required by the RAG component (`supabase_rag.py`) to perform the semantic-search RPC call.
+   - `OPENAI_API_KEY` — the OpenAI API key, used for generating embeddings and answers.
+   - `BOT_USER_ID` — the UUID of the bot's user account, used as the author of published comments.
 
-4. (אופציונלי) יצירת `config/config.yaml` לשינוי התנהגות ברירת המחדל של ה-Fetcher (למשל מעבר ממקור Supabase למקור קובץ JSON מקומי, או שינוי חלון הזמן לבדיקת פוסטים חדשים). ללא קובץ כזה, נטענת קונפיגורציית ברירת מחדל מתוך `post_fetcher.py`.
+4. (Optional) Create a `config/config.yaml` file to override the Fetcher's default behavior (for example, switching from the Supabase source to a local JSON file source, or changing the time window used to look for new posts). Without such a file, the default configuration defined in `post_fetcher.py` is used.
 
-5. הרצת הבוט:
+5. Run the bot:
    ```bash
    python main.py
    ```
 
-   הבוט יתחיל לרוץ בלופ, ייבדק פוסטים חדשים כל 10 שניות (`POLL_INTERVAL` ב-`main.py`), ויפרסם תגובות לפוסטים רלוונטיים בתחום הביטוח.
+   The bot will start its loop, checking for new posts every 10 seconds (`POLL_INTERVAL` in `main.py`), and will publish replies to relevant insurance-related posts.
 
-## ☁️ פריסה (Deployment)
+## ☁️ Deployment
 
-הפרויקט מתאים לפריסה כ-**Background Worker** בשירות [Render](https://render.com/):
+The project is designed to be deployed as a **Background Worker** on [Render](https://render.com/):
 
 - **Build Command:** `pip install -r requirements.txt`
 - **Start Command:** `python main.py`
-- יש להגדיר את כל משתני הסביבה שפורטו לעיל בהגדרות ה-Environment של השירות ב-Render.
+- All the environment variables listed above should be set in the service's Environment settings on Render.
 
-## 🧪 בדיקות
+## 🧪 Tests
 
-תיקיית `tests/` קיימת כשלד לבדיקות (`__init__.py` בלבד, ללא בדיקות בפועל עדיין). מומלץ להוסיף בדיקות יחידה לרכיבי הסינון (`is_insurance_related`), טעינת/שמירת חותמת הזמן (`load_last_seen_timestamp`, `save_last_seen_timestamp`), ובניית פרומפט ההקשר (`build_context_prompt`).
+The `tests/` directory currently exists only as scaffolding (`__init__.py` only, no actual tests yet). It's recommended to add unit tests for the filtering logic (`is_insurance_related`), timestamp loading/saving (`load_last_seen_timestamp`, `save_last_seen_timestamp`), and context prompt construction (`build_context_prompt`).
 
-## 📌 נקודות לתשומת לב
+## 📌 Notes
 
-- שמות משתני הסביבה של מפתחות Supabase אינם עקביים בין הקבצים (`SUPABASE_ANON_KEY`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — לכל רכיב בפרויקט יש משתנה שונה שהוא קורא, כך שיש להגדיר את כולם ב-`.env`.
-- `requirements.txt` אינו מכיל תלויות בפועל כיום — יש להשלים אותו בהתאם לחבילות הנדרשות (ראו סעיף ההתקנה).
-- קובץ הקונפיגורציה `config/config.yaml` הנזכר בקוד (`post_fetcher.py`) אינו קיים כברירת מחדל בריפו; הפרויקט פועל ללא בעיה גם בלעדיו, תוך שימוש בקונפיגורציית ברירת המחדל המוגדרת בקוד.
+- The environment variable names for Supabase keys are inconsistent across files (`SUPABASE_ANON_KEY`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — each component in the project reads a different variable, so all of them need to be set in `.env`.
+- `requirements.txt` currently has no real dependencies listed — it should be filled in according to the packages required (see the installation section above).
+- The `config/config.yaml` configuration file referenced in the code (`post_fetcher.py`) does not exist by default in the repo; the project works fine without it, falling back to the default configuration defined in the code.
