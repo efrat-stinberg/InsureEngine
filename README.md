@@ -60,13 +60,12 @@ InsureEngine/
 │   └── supabase_rag.py            # Embedding, semantic search, and answer generation
 ├── tests/
 │   └── __init__.py                # Test scaffolding (currently empty)
-├── last_seen.txt                  # Timestamp of the last post processed
-├── requirements.txt                # Dependency list (see note below)
+├── last_seen.txt                  # Timestamp of the last post processed (runtime state, gitignored)
+├── requirements.txt                # Pinned dependencies
+├── .env.example                    # Template for the required environment variables
 ├── .gitignore
 └── README.md
 ```
-
-> **Note:** `requirements.txt` is currently just a placeholder file with no actual dependencies listed. Based on the imports in the code, the dependencies required to run the project are at least: `supabase`, `openai`, `python-dotenv`, `pyyaml`. It's recommended to add them to the file (see the installation steps below).
 
 ## 🚀 Installation and running
 
@@ -87,19 +86,14 @@ InsureEngine/
    cd InsureEngine
    ```
 
-2. Install dependencies (you should also fill in `requirements.txt` with the packages below, or install them directly):
+2. Install dependencies:
    ```bash
-   pip install supabase openai python-dotenv pyyaml
+   pip install -r requirements.txt
    ```
 
-3. Create a `.env` file in the project root with the following variables:
-   ```env
-   SUPABASE_URL=
-   SUPABASE_ANON_KEY=
-   SUPABASE_SERVICE_ROLE_KEY=
-   SUPABASE_KEY=
-   OPENAI_API_KEY=
-   BOT_USER_ID=
+3. Copy `.env.example` to `.env` and fill in real values:
+   ```bash
+   cp .env.example .env
    ```
    - `SUPABASE_URL` / `SUPABASE_ANON_KEY` — required for fetching posts (`post_fetcher.py`).
    - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — required for publishing comments (`comments.py`), since write access is needed.
@@ -130,6 +124,6 @@ The `tests/` directory currently exists only as scaffolding (`__init__.py` only,
 
 ## 📌 Notes
 
-- The environment variable names for Supabase keys are inconsistent across files (`SUPABASE_ANON_KEY`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — each component in the project reads a different variable, so all of them need to be set in `.env`.
-- `requirements.txt` currently has no real dependencies listed — it should be filled in according to the packages required (see the installation section above).
+- The environment variable names for Supabase keys are inconsistent across files (`SUPABASE_ANON_KEY`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — each component in the project reads a different variable, so all of them need to be set in `.env`. See `.env.example` for the full list.
 - The `config/config.yaml` configuration file referenced in the code (`post_fetcher.py`) does not exist by default in the repo; the project works fine without it, falling back to the default configuration defined in the code.
+- `last_seen.txt` is runtime state written by the bot while it runs (not project source), so it is gitignored rather than committed.
