@@ -144,6 +144,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Runtime state (written by the bot while running, not project source)
+last_seen.txt
+
 # Spyder project settings
 .spyderproject
 .spyproject
